@@ -27,12 +27,6 @@ from telegram.ext import (
 # Replicate import
 import replicate
 
-import os
-from dotenv import load_dotenv
-
-# Загружаем переменные окружения
-load_dotenv()
-
 # Настройка логирования
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -551,20 +545,12 @@ class AvatarBot:
 
 # Конфигурация
 if __name__ == "__main__":
-    # Получаем токены из переменных окружения
-    TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-    REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN")
-    
-    if not TELEGRAM_BOT_TOKEN or not REPLICATE_API_TOKEN:
-        print("❌ Ошибка: Не установлены токены!")
-        print("Установите TELEGRAM_BOT_TOKEN и REPLICATE_API_TOKEN")
-        exit(1)
+    # Вставьте свои токены
+    TELEGRAM_BOT_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
+    REPLICATE_API_TOKEN = "YOUR_REPLICATE_API_TOKEN"
     
     # Создаем и запускаем бота
     bot = AvatarBot(TELEGRAM_BOT_TOKEN, REPLICATE_API_TOKEN)
     
-    print("🤖 Бот запущен на Railway!")
-    print(f"✅ Telegram Token: ...{TELEGRAM_BOT_TOKEN[-10:]}")
-    print(f"✅ Replicate Token: ...{REPLICATE_API_TOKEN[-10:]}")
-    
+    print("🤖 Бот запущен!")
     bot.run()
