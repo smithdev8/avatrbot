@@ -600,7 +600,6 @@ class AvatarBot:
             logger.error(f"Error: {e}")
             return UPLOADING_LORA
     
-
     async def handle_lora_decision(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработка решения о количестве фото для LoRA"""
         query = update.callback_query
@@ -625,6 +624,7 @@ class AvatarBot:
                 f"📸 Отправьте еще фото (сейчас {count}/10):"
             )
             return UPLOADING_LORA
+
     async def handle_style_selection(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Выбор стиля и генерация"""
         query = update.callback_query
@@ -957,175 +957,6 @@ class AvatarBot:
             [InlineKeyboardButton("📊 Детальная статистика", callback_data="admin_detailed_stats")],
             [InlineKeyboardButton("💰 Транзакции", callback_data="admin_transactions")],
             [InlineKeyboardButton("📨 Рассылка", callback_data="admin_broadcast")],
-
-    async def admin_functions(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Админ функции"""
-        query = update.callback_query
-        user_id = update.effective_user.id
-        
-        if user_id not in self.admin_ids:
-            await query.answer("❌ Доступ запрещен", show_alert=True)
-            return MAIN_MENU
-        
-        await query.answer()
-        
-        if query.data == "admin_add_credits":
-            await query.edit_message_text(
-                "➕ **Начисление кредитов**\n\n"
-                "Отправьте сообщение в формате:\n"
-                "`user_id количество`\n\n"
-                "Например: `123456789 50`",
-                parse_mode='Markdown'
-            )
-            context.user_data['admin_action'] = 'add_credits'
-            return ADMIN_USER_SEARCH
-            
-        elif query.data == "admin_detailed_stats":
-            cursor = self.db.conn.cursor()
-            
-            # Детальная статистика
-            cursor.execute('''
-                SELECT 
-                    COUNT(DISTINCT user_id) as unique_users,
-                    COUNT(*) as total_generations,
-                    SUM(credits_used) as total_credits,
-                    AVG(credits_used) as avg_credits
-                FROM generations
-                WHERE DATE(created_at) >= DATE('now', '-7 days')
-            ''')
-            week_stats = cursor.fetchone()
-            
-            cursor.execute('''
-                SELECT style, COUNT(*) as count
-                FROM generations
-                GROUP BY style
-                ORDER BY count DESC
-                LIMIT 5
-            ''')
-            top_styles = cursor.fetchall()
-            
-            stats_text = f"""
-📊 **Детальная статистика (7 дней)**
-
-👥 Уникальных пользователей: {week_stats[0]}
-🎨 Всего генераций: {week_stats[1]}
-💰 Использовано кредитов: {week_stats[2] or 0}
-📈 Среднее на генерацию: {week_stats[3] or 0:.1f}
-
-**Популярные стили:**
-"""
-            for style, count in top_styles:
-                style_name = STYLES.get(style, {}).get('name', style)
-                stats_text += f"• {style_name}: {count} раз\n"
-            
-            keyboard = [[InlineKeyboardButton("🔙 Назад", callback_data="admin")]]
-            await query.edit_message_text(
-                stats_text,
-                parse_mode='Markdown',
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
-            
-        elif query.data == "admin_transactions":
-            cursor = self.db.conn.cursor()
-            cursor.execute('''
-                SELECT user_id, type, amount, credits, status, created_at
-                FROM transactions
-                ORDER BY created_at DESC
-                LIMIT 10
-            ''')
-            transactions = cursor.fetchall()
-            
-            trans_text = "💰 **Последние транзакции:**\n\n"
-            for t in transactions:
-                trans_text += f"• User {t[0]}: {t[2]}$ за {t[3]} кредитов - {t[4]}\n"
-            
-            keyboard = [[InlineKeyboardButton("🔙 Назад", callback_data="admin")]]
-            await query.edit_message_text(
-                trans_text,
-                parse_mode='Markdown',
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
-            
-        elif query.data == "admin_broadcast":
-            await query.edit_message_text(
-                "📨 **Рассылка**\n\n"
-                "Отправьте текст сообщения для рассылки всем пользователям.\n"
-                "Или /cancel для отмены",
-                parse_mode='Markdown'
-            )
-            context.user_data['admin_action'] = 'broadcast'
-            return ADMIN_USER_SEARCH
-
-    async def handle_admin_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Обработка админского ввода"""
-        action = context.user_data.get('admin_action')
-        
-        if action == 'add_credits':
-            try:
-                parts = update.message.text.split()
-                target_user_id = int(parts[0])
-                credits = int(parts[1])
-                
-                self.db.update_credits(target_user_id, credits)
-                
-                await update.message.reply_text(
-                    f"✅ Начислено {credits} кредитов пользователю {target_user_id}"
-                )
-                
-                # Уведомляем пользователя
-                try:
-                    await context.bot.send_message(
-                        target_user_id,
-                        f"🎁 Вам начислено {credits} кредитов!"
-                    )
-                except:
-                ,
-                ADMIN_USER_SEARCH: [
-                    MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_admin_input),
-                    CallbackQueryHandler(self.handle_navigation)
-                ]
-                    pass
-                    
-            except Exception as e:
-                await update.message.reply_text(f"❌ Ошибка: {e}")
-            
-            context.user_data.clear()
-            return MAIN_MENU
-            
-        elif action == 'broadcast':
-            text = update.message.text
-            
-            cursor = self.db.conn.cursor()
-            cursor.execute('SELECT user_id FROM users')
-            users = cursor.fetchall()
-            
-            sent = 0
-            failed = 0
-            
-            msg = await update.message.reply_text("📨 Начинаю рассылку...")
-            
-            for user in users:
-                try:
-                    await context.bot.send_message(user[0], text)
-                    sent += 1
-                except:
-                    failed += 1
-                
-                if (sent + failed) % 10 == 0:
-                    await msg.edit_text(
-                        f"📨 Рассылка...\n"
-                        f"✅ Отправлено: {sent}\n"
-                        f"❌ Ошибок: {failed}"
-                    )
-            
-            await msg.edit_text(
-                f"✅ Рассылка завершена!\n"
-                f"Отправлено: {sent}\n"
-                f"Не доставлено: {failed}"
-            )
-            
-            context.user_data.clear()
-            return MAIN_MENU
             [InlineKeyboardButton("🔙 Главное меню", callback_data="main_menu")]
         ]
         
@@ -1151,6 +982,177 @@ class AvatarBot:
         
         return ADMIN_PANEL
     
+    async def admin_functions(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Админ функции"""
+        query = update.callback_query
+        user_id = update.effective_user.id
+        
+        if user_id not in self.admin_ids:
+            await query.answer("❌ Доступ запрещен", show_alert=True)
+            return MAIN_MENU
+        
+        await query.answer()
+        
+        if query.data == "admin_add_credits":
+            await query.edit_message_text(
+                "➕ **Начисление кредитов**\n\n"
+                "Отправьте сообщение в формате:\n"
+                "`user_id количество`\n\n"
+                "Например: `123456789 50`",
+                parse_mode='Markdown'
+            )
+            context.user_data['admin_action'] = 'add_credits'
+            return ADMIN_USER_SEARCH
+            
+        elif query.data == "admin_detailed_stats":
+            cursor = self.db.conn.cursor()
+            
+            # Детальная статистика за 7 дней
+            cursor.execute("""
+                SELECT 
+                    COUNT(DISTINCT user_id) as unique_users,
+                    COUNT(*) as total_generations,
+                    COALESCE(SUM(credits_used), 0) as total_credits,
+                    COALESCE(AVG(credits_used), 0) as avg_credits
+                FROM generations
+                WHERE DATE(created_at) >= DATE('now', '-7 days')
+            """)
+            week_stats = cursor.fetchone()
+            
+            cursor.execute("""
+                SELECT style, COUNT(*) as count
+                FROM generations
+                GROUP BY style
+                ORDER BY count DESC
+                LIMIT 5
+            """)
+            top_styles = cursor.fetchall()
+            
+            stats_text = f"""
+📊 **Детальная статистика (7 дней)**
+
+👥 Уникальных пользователей: {week_stats[0]}
+🎨 Всего генераций: {week_stats[1]}
+💰 Использовано кредитов: {week_stats[2]}
+📈 Среднее на генерацию: {week_stats[3]:.1f}
+
+**Популярные стили:**
+"""
+            for style, count in top_styles:
+                style_name = STYLES.get(style, {}).get('name', style)
+                stats_text += f"• {style_name}: {count} раз\n"
+            
+            keyboard = [[InlineKeyboardButton("🔙 Назад", callback_data="admin")]]
+            await query.edit_message_text(
+                stats_text,
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+            return ADMIN_PANEL
+            
+        elif query.data == "admin_transactions":
+            cursor = self.db.conn.cursor()
+            cursor.execute("""
+                SELECT user_id, type, amount, credits, status, created_at
+                FROM transactions
+                ORDER BY created_at DESC
+                LIMIT 10
+            """)
+            transactions = cursor.fetchall()
+            
+            trans_text = "💰 **Последние транзакции:**\n\n"
+            for t in transactions:
+                trans_text += f"• User {t[0]}: {t[2]}$ за {t[3]} кредитов - {t[4]}\n"
+            
+            keyboard = [[InlineKeyboardButton("🔙 Назад", callback_data="admin")]]
+            await query.edit_message_text(
+                trans_text,
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+            return ADMIN_PANEL
+            
+        elif query.data == "admin_broadcast":
+            await query.edit_message_text(
+                "📨 **Рассылка**\n\n"
+                "Отправьте текст сообщения для рассылки всем пользователям.\n"
+                "Или /cancel для отмены",
+                parse_mode='Markdown'
+            )
+            context.user_data['admin_action'] = 'broadcast'
+            return ADMIN_USER_SEARCH
+        else:
+            return ADMIN_PANEL
+            
+    async def handle_admin_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработка админского ввода"""
+        action = context.user_data.get('admin_action')
+        
+        if action == 'add_credits':
+            try:
+                parts = update.message.text.split()
+                target_user_id = int(parts[0])
+                credits = int(parts[1])
+                
+                self.db.update_credits(target_user_id, credits)
+                
+                await update.message.reply_text(
+                    f"✅ Начислено {credits} кредитов пользователю {target_user_id}"
+                )
+                
+                # Уведомляем пользователя
+                try:
+                    await context.bot.send_message(
+                        target_user_id,
+                        f"🎁 Вам начислено {credits} кредитов!"
+                    )
+                except Exception:
+                    pass
+                    
+            except Exception as e:
+                await update.message.reply_text(f"❌ Ошибка: {e}")
+            
+            context.user_data.clear()
+            return MAIN_MENU
+            
+        elif action == 'broadcast':
+            text = update.message.text
+            
+            cursor = self.db.conn.cursor()
+            cursor.execute('SELECT user_id FROM users')
+            users = cursor.fetchall()
+            
+            sent = 0
+            failed = 0
+            
+            msg = await update.message.reply_text("📨 Начинаю рассылку...")
+            
+            for user in users:
+                try:
+                    await context.bot.send_message(user[0], text)
+                    sent += 1
+                except Exception:
+                    failed += 1
+                
+                if (sent + failed) % 10 == 0:
+                    await msg.edit_text(
+                        f"📨 Рассылка...\n"
+                        f"✅ Отправлено: {sent}\n"
+                        f"❌ Ошибок: {failed}"
+                    )
+            
+            await msg.edit_text(
+                f"✅ Рассылка завершена!\n"
+                f"Отправлено: {sent}\n"
+                f"Не доставлено: {failed}"
+            )
+            
+            context.user_data.clear()
+            return MAIN_MENU
+        else:
+            await update.message.reply_text("❗ Неизвестное действие администратора.")
+            return MAIN_MENU
+
     async def handle_navigation(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработка навигации"""
         query = update.callback_query
@@ -1272,7 +1274,11 @@ class AvatarBot:
                 ADMIN_PANEL: [
                     CallbackQueryHandler(self.admin_functions),
                     CallbackQueryHandler(self.handle_navigation)
-                ]
+                ],
+                ADMIN_USER_SEARCH: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_admin_input),
+                    CallbackQueryHandler(self.handle_navigation)
+                ],
             },
             fallbacks=[
                 CommandHandler("start", self.start),
