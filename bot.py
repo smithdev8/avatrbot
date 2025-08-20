@@ -310,7 +310,7 @@ class AvatarBot:
                     ]
                 },
                 fallbacks=[CommandHandler("cancel", self.cancel)],
-                per_message=True  # Исправляем предупреждение
+                per_message=False  # Исправляем предупреждение
             )
             
             # Добавляем обработчики
